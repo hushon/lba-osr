@@ -2,6 +2,8 @@
 
 ## Setup
 
+You need Dassl to run CoOp. Follow the instructions at <https://github.com/KaiyangZhou/Dassl.pytorch#installation>. 
+
 ## Running code
 
 ```base
