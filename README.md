@@ -1,4 +1,4 @@
-# lba-osr
+# LBA-OSR
 
 ## Setup
 
