@@ -5,8 +5,6 @@ import time
 import csv
 import pandas as pd
 import importlib
-import random
-import numpy as np
 
 import torch
 import torch.nn as nn
@@ -162,7 +160,7 @@ def main_worker(options):
         else:
             raise NotImplementedError
 
-        import coop
+        import coop, random
         if options['clip_model'] == "RN50":
             clip_model = coop.load_clip_to_cpu("RN50").float()
         elif options['clip_model'] == "ViT-B/32":
@@ -172,20 +170,159 @@ def main_worker(options):
         else:
             raise ValueError("Unsupported clip model: {}".format(options['clip_model']))
 
-        # Generate open classnames using Diversity Maximization approach with CLIP embeddings
-        def get_open_classnames_diversity_maximization(known_classnames, all_classnames, clip_model, num_classes=1000):
-            # Get embeddings for known classnames
-            known_embeddings = []
-            for classname in known_classnames:
-                text_tokens = coop.tokenize([classname])
-                with torch.no_grad():
-                    known_embedding = clip_model.encode_text(text_tokens).cpu().numpy()
-                known_embeddings.append(known_embedding)
-            known_embeddings = np.vstack(known_embeddings)
+        use_open_classnames = (options['loss'] == "SoftmaxPlus")
 
+        def get_open_classnames_im21k():
+            # from coop_clip.imagenet_classnames import classnames as open_classnames
+            # open_classnames = list(open_classnames.values())
+            with open('./coop_clip/imagenet21k_wordnet_lemmas.txt', 'r') as file:
+                open_classnames = [line.strip() for line in file.readlines()]
+            random.Random(42).shuffle(open_classnames)
+            open_classnames = open_classnames[:1000]
+            return open_classnames
+
+        # Generate open classnames using WordNet (Ontology-based approach)
+        def get_hypernyms(synset, depth=3):
+            hypernyms = set()
+            queue = [(synset, 0)]
+            while queue:
+                current_synset, current_depth = queue.pop(0)
+                if current_depth >= depth:
+                    continue
+                for hypernym in current_synset.hypernyms():
+                    if hypernym not in hypernyms:
+                        hypernyms.add(hypernym)
+                        queue.append((hypernym, current_depth + 1))
+            return list(hypernyms)
+
+        def get_open_classnames_ontology(known_classnames, num_classes=1000):
             open_classnames = set()
-            all_embeddings = {}
+            for classname in known_classnames:
+                synsets = wn.synsets(classname)
+                if synsets:
+                    synset = synsets[0]
+                    hypernyms = get_hypernyms(synset)
+                    for hypernym in hypernyms:
+                        open_classnames.add(hypernym.lemmas()[0].name())
+                if len(open_classnames) >= num_classes:
+                    break
+            return list(open_classnames)[:num_classes]
 
-            # Precompute embeddings for all classnames
-            for classname in all_classnames:
-                text_tokens = coop.tokenize([classname])
+
+        if use_open_classnames:
+            # open_classnames = get_open_classnames_im21k()
+            open_classnames = get_open_classnames_ontology(classnames)
+            model = coop.CustomCLIP(classnames+open_classnames, clip_model)
+            criterion.num_classes = len(classnames)
+        else:
+            model = coop.CustomCLIP(classnames, clip_model)
+
+        # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+        # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+        # checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
+        checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+        state_dict = checkpoint['state_dict']
+
+        # Ignore fixed token vectors
+        if "token_prefix" in state_dict:
+            del state_dict["token_prefix"]
+
+        if "token_suffix" in state_dict:
+            del state_dict["token_suffix"]
+        model.prompt_learner.load_state_dict(state_dict, strict=False)
+
+        net = model.cuda()
+
+        # net = coop.VanillaCLIP(classnames).cuda()
+
+        results = test(net, criterion, testloader, outloader, epoch=0, **options)
+        print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
+
+        return results
+
+    params_list = [{'params': net.parameters()},
+                {'params': criterion.parameters()}]
+    
+    if options['dataset'] == 'tiny_imagenet':
+        optimizer = torch.optim.Adam(params_list, lr=options['lr'])
+    else:
+        optimizer = torch.optim.SGD(params_list, lr=options['lr'], momentum=0.9, weight_decay=1e-4)
+    if options['cs']:
+        optimizerD = torch.optim.Adam(netD.parameters(), lr=options['gan_lr'], betas=(0.5, 0.999))
+        optimizerG = torch.optim.Adam(netG.parameters(), lr=options['gan_lr'], betas=(0.5, 0.999))
+
+    if options['stepsize'] > 0:
+        scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[30,60,90,120])
+
+    start_time = time.time()
+
+    for epoch in range(options['max_epoch']):
+        print("==> Epoch {}/{}".format(epoch+1, options['max_epoch']))
+
+        if options['cs']:
+            train_cs(net, netD, netG, criterion, criterionD,
+                optimizer, optimizerD, optimizerG,
+                trainloader, epoch=epoch, **options)
+
+        train(net, criterion, optimizer, trainloader, epoch=epoch, **options)
+
+        if options['eval_freq'] > 0 and (epoch+1) % options['eval_freq'] == 0 or (epoch+1) == options['max_epoch']:
+            print("==> Test", options['loss'])
+            results = test(net, criterion, testloader, outloader, epoch=epoch, **options)
+            print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
+
+            save_networks(net, model_path, file_name, criterion=criterion)
+        
+        if options['stepsize'] > 0: scheduler.step()
+
+    elapsed = round(time.time() - start_time)
+    elapsed = str(datetime.timedelta(seconds=elapsed))
+    print("Finished. Total elapsed time (h:m:s): {}".format(elapsed))
+
+    return results
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    options = vars(args)
+    options['dataroot'] = os.path.join(options['dataroot'], options['dataset'])
+    img_size = 32
+    results = dict()
+    
+    from split import splits_2020 as splits
+    
+    for i in range(len(splits[options['dataset']])):
+        known = splits[options['dataset']][len(splits[options['dataset']])-i-1]
+        if options['dataset'] == 'cifar100':
+            unknown = splits[options['dataset']+'-'+str(options['out_num'])][len(splits[options['dataset']])-i-1]
+        elif options['dataset'] == 'tiny_imagenet':
+            img_size = 64
+            options['lr'] = 0.001
+            unknown = list(set(list(range(0, 200))) - set(known))
+        else:
+            unknown = list(set(list(range(0, 10))) - set(known))
+
+        options.update(
+            {
+                'item':     i,
+                'known':    known,
+                'unknown':  unknown,
+                'img_size': img_size
+            }
+        )
+
+        dir_name = '{}_{}'.format(options['model'], options['loss'])
+        dir_path = os.path.join(options['outf'], 'results', dir_name)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+        if options['dataset'] == 'cifar100':
+            file_name = '{}_{}.csv'.format(options['dataset'], options['out_num'])
+        else:
+            file_name = options['dataset'] + '.csv'
+
+        res = main_worker(options)
+        res['unknown'] = unknown
+        res['known'] = known
+        results[str(i)] = res
+        df = pd.DataFrame(results)
+        df.to_csv(os.path.join(dir_path, file_name))
