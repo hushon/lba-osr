@@ -2,157 +2,291 @@ import os
 import argparse
 import datetime
 import time
+import csv
 import pandas as pd
 import importlib
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.optim import lr_scheduler
+import torch.multiprocessing as mp
 import torch.backends.cudnn as cudnn
 
 from models import gan
 from models.models import classifier32, classifier32ABN
 from datasets.osr_dataloader import MNIST_OSR, CIFAR10_OSR, CIFAR100_OSR, SVHN_OSR, Tiny_ImageNet_OSR
-from utils import save_networks, load_networks
+from utils import Logger, save_networks, load_networks
 from core import train, train_cs, test
 
-# Allow TF32 precision for performance
+# The flag below controls whether to allow TF32 on matmul. This flag defaults to False
+# in PyTorch 1.12 and later.
 torch.backends.cuda.matmul.allow_tf32 = True
+
+# The flag below controls whether to allow TF32 on cuDNN. This flag defaults to True.
 torch.backends.cudnn.allow_tf32 = True
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser("Training")
+parser = argparse.ArgumentParser("Training")
 
-    # Dataset
-    parser.add_argument('--dataset', type=str, default='mnist', help="mnist | svhn | cifar10 | cifar100 | tiny_imagenet")
-    parser.add_argument('--dataroot', type=str, default='/home/hyounguk.shon/data')
-    parser.add_argument('--outf', type=str, default='./log')
-    parser.add_argument('--out-num', type=int, default=50, help='For CIFAR100')
+# Dataset
+parser.add_argument('--dataset', type=str, default='mnist', help="mnist | svhn | cifar10 | cifar100 | tiny_imagenet")
+parser.add_argument('--dataroot', type=str, default='/home/hyounguk.shon/data')
+parser.add_argument('--outf', type=str, default='./log')
+parser.add_argument('--out-num', type=int, default=50, help='For CIFAR100')
 
-    # Optimization
-    parser.add_argument('--batch-size', type=int, default=64)
-    parser.add_argument('--lr', type=float, default=0.1, help="learning rate for model")
-    parser.add_argument('--gan_lr', type=float, default=0.0002, help="learning rate for gan")
-    parser.add_argument('--max-epoch', type=int, default=100)
-    parser.add_argument('--stepsize', type=int, default=30)
-    parser.add_argument('--num-centers', type=int, default=1)
+# optimization
+parser.add_argument('--batch-size', type=int, default=64)
+parser.add_argument('--lr', type=float, default=0.1, help="learning rate for model")
+parser.add_argument('--gan_lr', type=float, default=0.0002, help="learning rate for gan")
+parser.add_argument('--max-epoch', type=int, default=100)
+parser.add_argument('--stepsize', type=int, default=30)
+parser.add_argument('--temp', type=float, default=1.0, help="temp")
+parser.add_argument('--num-centers', type=int, default=1)
 
-    # Model
-    parser.add_argument('--model', type=str, default='classifier32')
+# model
+parser.add_argument('--weight-pl', type=float, default=0.1, help="weight for center loss")
+parser.add_argument('--beta', type=float, default=0.1, help="weight for entropy loss")
+parser.add_argument('--model', type=str, default='classifier32')
 
-    # Misc
-    parser.add_argument('--gpu', type=str, default='0')
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--use-cpu', action='store_true')
-    parser.add_argument('--eval', action='store_true', help="Eval", default=False)
-    parser.add_argument('--cs', action='store_true', help="Confusing Sample", default=False)
-    parser.add_argument('--use-open-classnames', action='store_true', help="Use open classnames for evaluation", default=False)
+# misc
+parser.add_argument('--nz', type=int, default=100)
+parser.add_argument('--ns', type=int, default=1)
+parser.add_argument('--eval-freq', type=int, default=1)
+parser.add_argument('--print-freq', type=int, default=100)
+parser.add_argument('--gpu', type=str, default='0')
+parser.add_argument('--seed', type=int, default=0)
+parser.add_argument('--use-cpu', action='store_true')
+parser.add_argument('--save-dir', type=str, default='../log')
+parser.add_argument('--loss', type=str, default='ARPLoss')
+parser.add_argument('--eval', action='store_true', help="Eval", default=False)
+parser.add_argument('--cs', action='store_true', help="Confusing Sample", default=False)
 
-    return parser.parse_args()
-
-
-def prepare_environment(options):
+def main_worker(options):
     torch.manual_seed(options['seed'])
     os.environ['CUDA_VISIBLE_DEVICES'] = options['gpu']
-    use_gpu = torch.cuda.is_available() and not options['use_cpu']
+    use_gpu = torch.cuda.is_available()
+    if options['use_cpu']: use_gpu = False
 
     if use_gpu:
-        print(f"Currently using GPU: {options['gpu']}")
+        print("Currently using GPU: {}".format(options['gpu']))
         cudnn.benchmark = True
         torch.cuda.manual_seed_all(options['seed'])
     else:
         print("Currently using CPU")
 
-    return use_gpu
-
-
-def get_dataloader(options):
-    dataset_mapping = {
-        'mnist': MNIST_OSR,
-        'cifar10': CIFAR10_OSR,
-        'svhn': SVHN_OSR,
-        'cifar100': CIFAR100_OSR,
-        'tiny_imagenet': Tiny_ImageNet_OSR
-    }
-    Data = dataset_mapping[options['dataset']](
-        known=options['known'],
-        dataroot=options['dataroot'],
-        batch_size=options['batch_size'],
-        img_size=options['img_size']
-    )
-    return Data.train_loader, Data.test_loader, Data.out_loader if options['dataset'] != 'cifar100' else None
-
-
-def create_model(options):
-    print(f"Creating model: {options['model']}")
-    net = classifier32ABN(num_classes=options['num_classes']) if options['cs'] else classifier32(num_classes=options['num_classes'])
-    return net
-
-
-def setup_loss(options):
-    Loss = importlib.import_module('loss.' + options['loss'])
-    return getattr(Loss, options['loss'])(**options)
-
-
-def setup_optimizer(options, net, criterion):
-    params_list = [{'params': net.parameters()}, {'params': criterion.parameters()}]
-    if options['dataset'] == 'tiny_imagenet':
-        return torch.optim.Adam(params_list, lr=options['lr'])
+    # Dataset
+    print("{} Preparation".format(options['dataset']))
+    if 'mnist' in options['dataset']:
+        Data = MNIST_OSR(known=options['known'], dataroot=options['dataroot'], batch_size=options['batch_size'], img_size=options['img_size'])
+        trainloader, testloader, outloader = Data.train_loader, Data.test_loader, Data.out_loader
+    elif 'cifar10' == options['dataset']:
+        Data = CIFAR10_OSR(known=options['known'], dataroot=options['dataroot'], batch_size=options['batch_size'], img_size=options['img_size'])
+        trainloader, testloader, outloader = Data.train_loader, Data.test_loader, Data.out_loader
+    elif 'svhn' in options['dataset']:
+        Data = SVHN_OSR(known=options['known'], dataroot=options['dataroot'], batch_size=options['batch_size'], img_size=options['img_size'])
+        trainloader, testloader, outloader = Data.train_loader, Data.test_loader, Data.out_loader
+    elif 'cifar100' in options['dataset']:
+        Data = CIFAR10_OSR(known=options['known'], dataroot=options['dataroot'], batch_size=options['batch_size'], img_size=options['img_size'])
+        trainloader, testloader = Data.train_loader, Data.test_loader
+        out_Data = CIFAR100_OSR(known=options['unknown'], dataroot=options['dataroot'], batch_size=options['batch_size'], img_size=options['img_size'])
+        outloader = out_Data.test_loader
     else:
-        return torch.optim.SGD(params_list, lr=options['lr'], momentum=0.9, weight_decay=1e-4)
+        Data = Tiny_ImageNet_OSR(known=options['known'], dataroot=options['dataroot'], batch_size=options['batch_size'], img_size=options['img_size'])
+        trainloader, testloader, outloader = Data.train_loader, Data.test_loader, Data.out_loader
+    
+    options['num_classes'] = Data.num_classes
 
+    # Model
+    print("Creating model: {}".format(options['model']))
+    if options['cs']:
+        net = classifier32ABN(num_classes=options['num_classes'])
+    else:
+        net = classifier32(num_classes=options['num_classes'])
+    feat_dim = 128
 
-def main_worker(options):
-    use_gpu = prepare_environment(options)
-    trainloader, testloader, outloader = get_dataloader(options)
-    options['num_classes'] = trainloader.dataset.num_classes
+    if options['cs']:
+        print("Creating GAN")
+        nz, ns = options['nz'], 1
+        if 'tiny_imagenet' in options['dataset']:
+            netG = gan.Generator(1, nz, 64, 3)
+            netD = gan.Discriminator(1, 3, 64)
+        else:
+            netG = gan.Generator32(1, nz, 64, 3)
+            netD = gan.Discriminator32(1, 3, 64)
+        fixed_noise = torch.FloatTensor(64, nz, 1, 1).normal_(0, 1)
+        criterionD = nn.BCELoss()
 
-    net = create_model(options)
-    criterion = setup_loss(options)
+    # Loss
+    options.update(
+        {
+            'feat_dim': feat_dim,
+            'use_gpu':  use_gpu
+        }
+    )
+
+    Loss = importlib.import_module('loss.'+options['loss'])
+    criterion = getattr(Loss, options['loss'])(**options)
 
     if use_gpu:
         net = nn.DataParallel(net).cuda()
         criterion = criterion.cuda()
+        if options['cs']:
+            netG = nn.DataParallel(netG, device_ids=[i for i in range(len(options['gpu'].split(',')))]).cuda()
+            netD = nn.DataParallel(netD, device_ids=[i for i in range(len(options['gpu'].split(',')))]).cuda()
+            fixed_noise.cuda()
 
-    optimizer = setup_optimizer(options, net, criterion)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[30, 60, 90, 120]) if options['stepsize'] > 0 else None
+    model_path = os.path.join(options['outf'], 'models', options['dataset'])
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
+    
+    if options['dataset'] == 'cifar100':
+        model_path += '_50'
+        file_name = '{}_{}_{}_{}_{}'.format(options['model'], options['loss'], 50, options['item'], options['cs'])
+    else:
+        file_name = '{}_{}_{}_{}'.format(options['model'], options['loss'], options['item'], options['cs'])
+
+    if options['eval']:
+        # net, criterion = load_networks(net, model_path, file_name, criterion=criterion)
+
+        if options['dataset'] == 'tiny_imagenet':
+            with open('/home/hyounguk.shon/data/tiny_imagenet/tiny-imagenet-200/class_names.txt', 'r') as f:
+                classes = [line.strip() for line in f]
+            classnames = [classes[i] for i in Data.known] # Tiny ImageNet
+        elif 'cifar' in options['dataset']:
+            classnames = [testloader.dataset.classes[i] for i in Data.known] # CIFAR
+        else:
+            raise NotImplementedError
+
+
+        import coop, random
+        # clip_model = coop.load_clip_to_cpu("RN50").float()
+        # clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
+        clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
+
+
+        # from coop_clip.imagenet_classnames import classnames as open_classnames
+        # open_classnames = list(open_classnames.values())
+        with open('./coop_clip/imagenet21k_wordnet_lemmas.txt', 'r') as file:
+            open_classnames = [line.strip() for line in file.readlines()]
+        random.Random(42).shuffle(open_classnames)
+        open_classnames = open_classnames[:1000]
+        use_open_classnames = (options['loss'] == "SoftmaxPlus")
+
+        if use_open_classnames:
+            model = coop.CustomCLIP(classnames+open_classnames, clip_model)
+            criterion.num_classes = len(classnames)
+        else:
+            model = coop.CustomCLIP(classnames, clip_model)
+
+
+        # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+        # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+        # checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
+        checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+        state_dict = checkpoint['state_dict']
+
+        # Ignore fixed token vectors
+        if "token_prefix" in state_dict:
+            del state_dict["token_prefix"]
+
+        if "token_suffix" in state_dict:
+            del state_dict["token_suffix"]
+        model.prompt_learner.load_state_dict(state_dict, strict=False)
+
+        net = model.cuda()
+
+        # net = coop.VanillaCLIP(classnames).cuda()
+
+
+        results = test(net, criterion, testloader, outloader, epoch=0, **options)
+        print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
+
+        return results
+
+    params_list = [{'params': net.parameters()},
+                {'params': criterion.parameters()}]
+    
+    if options['dataset'] == 'tiny_imagenet':
+        optimizer = torch.optim.Adam(params_list, lr=options['lr'])
+    else:
+        optimizer = torch.optim.SGD(params_list, lr=options['lr'], momentum=0.9, weight_decay=1e-4)
+    if options['cs']:
+        optimizerD = torch.optim.Adam(netD.parameters(), lr=options['gan_lr'], betas=(0.5, 0.999))
+        optimizerG = torch.optim.Adam(netG.parameters(), lr=options['gan_lr'], betas=(0.5, 0.999))
+
+    if options['stepsize'] > 0:
+        scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[30,60,90,120])
 
     start_time = time.time()
+
     for epoch in range(options['max_epoch']):
-        print(f"==> Epoch {epoch + 1}/{options['max_epoch']}")
+        print("==> Epoch {}/{}".format(epoch+1, options['max_epoch']))
+
+        if options['cs']:
+            train_cs(net, netD, netG, criterion, criterionD,
+                optimizer, optimizerD, optimizerG,
+                trainloader, epoch=epoch, **options)
+
         train(net, criterion, optimizer, trainloader, epoch=epoch, **options)
 
-        if (epoch + 1) % options['eval_freq'] == 0 or (epoch + 1) == options['max_epoch']:
-            print(f"==> Test {options['loss']}")
-            if options['use_open_classnames']:
-                print("Using open classnames for evaluation")
+        if options['eval_freq'] > 0 and (epoch+1) % options['eval_freq'] == 0 or (epoch+1) == options['max_epoch']:
+            print("==> Test", options['loss'])
             results = test(net, criterion, testloader, outloader, epoch=epoch, **options)
-            print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(
-                results['ACC'], results['AUROC'], results['OSCR']))
-            save_networks(net, os.path.join(options['outf'], 'models', options['dataset']),
-                          f"{options['model']}_{options['loss']}_{options['item']}", criterion=criterion)
-        if scheduler:
-            scheduler.step()
+            print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
 
-    elapsed = str(datetime.timedelta(seconds=round(time.time() - start_time)))
-    print(f"Finished. Total elapsed time (h:m:s): {elapsed}")
+            save_networks(net, model_path, file_name, criterion=criterion)
+        
+        if options['stepsize'] > 0: scheduler.step()
+
+    elapsed = round(time.time() - start_time)
+    elapsed = str(datetime.timedelta(seconds=elapsed))
+    print("Finished. Total elapsed time (h:m:s): {}".format(elapsed))
+
     return results
 
-
 if __name__ == '__main__':
-    args = parse_arguments()
+    args = parser.parse_args()
     options = vars(args)
     options['dataroot'] = os.path.join(options['dataroot'], options['dataset'])
-    img_size = 32 if options['dataset'] != 'tiny_imagenet' else 64
-    options['img_size'] = img_size
-
+    img_size = 32
+    results = dict()
+    
     from split import splits_2020 as splits
-    results = {}
+    
+    for i in range(len(splits[options['dataset']])):
+        known = splits[options['dataset']][len(splits[options['dataset']])-i-1]
+        if options['dataset'] == 'cifar100':
+            unknown = splits[options['dataset']+'-'+str(options['out_num'])][len(splits[options['dataset']])-i-1]
+        elif options['dataset'] == 'tiny_imagenet':
+            img_size = 64
+            options['lr'] = 0.001
+            unknown = list(set(list(range(0, 200))) - set(known))
+        else:
+            unknown = list(set(list(range(0, 10))) - set(known))
 
-    for i, known in enumerate(reversed(splits[options['dataset']])):
-        unknown = list(set(range(200 if options['dataset'] == 'tiny_imagenet' else 10)) - set(known))
-        options.update({'item': i, 'known': known, 'unknown': unknown})
+        options.update(
+            {
+                'item':     i,
+                'known':    known,
+                'unknown':  unknown,
+                'img_size': img_size
+            }
+        )
+
+        dir_name = '{}_{}'.format(options['model'], options['loss'])
+        dir_path = os.path.join(options['outf'], 'results', dir_name)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+        if options['dataset'] == 'cifar100':
+            file_name = '{}_{}.csv'.format(options['dataset'], options['out_num'])
+        else:
+            file_name = options['dataset'] + '.csv'
+
         res = main_worker(options)
-        results[str(i)] = {**res, 'unknown': unknown, 'known': known}
-        pd.DataFrame(results).to_csv(os.path.join(options['outf'], 'results', f"{options['model']}_{options['loss']}.csv"))
+        res['unknown'] = unknown
+        res['known'] = known
+        results[str(i)] = res
+        df = pd.DataFrame(results)
+        df.to_csv(os.path.join(dir_path, file_name))
