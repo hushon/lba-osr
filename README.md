@@ -25,3 +25,9 @@ python osr.py --dataset <DATASET> --loss <LOSS> --eval
 
 Option --loss can be one of ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus. --dataset is one of mnist/svhn/cifar10/cifar100/tiny_imagenet. 
 
+
+## Credits
+
+This codebase is based on following codes: 
+- <https://github.com/iCGY96/ARPL>
+- <https://github.com/KaiyangZhou/CoOp>
