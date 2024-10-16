@@ -48,6 +48,7 @@ parser.add_argument('--num-centers', type=int, default=1)
 parser.add_argument('--weight-pl', type=float, default=0.1, help="weight for center loss")
 parser.add_argument('--beta', type=float, default=0.1, help="weight for entropy loss")
 parser.add_argument('--model', type=str, default='classifier32')
+parser.add_argument('--clip-model', type=str, default='ViT-B/16', help="RN50 | ViT-B/32 | ViT-B/16")
 
 # misc
 parser.add_argument('--nz', type=int, default=100)
@@ -158,12 +159,15 @@ def main_worker(options):
         else:
             raise NotImplementedError
 
-
         import coop, random
-        # clip_model = coop.load_clip_to_cpu("RN50").float()
-        # clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
-        clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
-
+        if options['clip_model'] == "RN50":
+            clip_model = coop.load_clip_to_cpu("RN50").float()
+        elif options['clip_model'] == "ViT-B/32":
+            clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
+        elif options['clip_model'] == "ViT-B/16":
+            clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
+        else:
+            raise ValueError("Unsupported clip model: {}".format(options['clip_model']))
 
         # from coop_clip.imagenet_classnames import classnames as open_classnames
         # open_classnames = list(open_classnames.values())
@@ -178,7 +182,6 @@ def main_worker(options):
             criterion.num_classes = len(classnames)
         else:
             model = coop.CustomCLIP(classnames, clip_model)
-
 
         # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
         # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
@@ -197,7 +200,6 @@ def main_worker(options):
         net = model.cuda()
 
         # net = coop.VanillaCLIP(classnames).cuda()
-
 
         results = test(net, criterion, testloader, outloader, epoch=0, **options)
         print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
