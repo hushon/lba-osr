@@ -19,6 +19,8 @@ from datasets.osr_dataloader import MNIST_OSR, CIFAR10_OSR, CIFAR100_OSR, SVHN_O
 from utils import Logger, save_networks, load_networks
 from core import train, train_cs, test
 from nltk.corpus import wordnet as wn
+import numpy as np
+
 
 # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
 # in PyTorch 1.12 and later.
@@ -208,10 +210,50 @@ def main_worker(options):
                     break
             return list(open_classnames)[:num_classes]
 
+        # Generate open classnames using Diversity Maximization approach with CLIP embeddings
+        def get_open_classnames_diversity_maximization(known_classnames, clip_model, num_classes=1000):
+            with open('./coop_clip/imagenet21k_wordnet_lemmas.txt', 'r') as file:
+                all_classnames = [line.strip() for line in file.readlines()]
+            # Get embeddings for known classnames
+            known_embeddings = []
+            for classname in known_classnames:
+                breakpoint()
+                text_tokens = clip_model.tokenize([classname])
+                with torch.no_grad():
+                    known_embedding = clip_model.encode_text(text_tokens).cpu().numpy()
+                known_embeddings.append(known_embedding)
+            known_embeddings = np.vstack(known_embeddings)
+
+            open_classnames = set()
+            all_embeddings = {}
+
+            # Precompute embeddings for all classnames
+            for classname in all_classnames:
+                text_tokens = coop.tokenize([classname])
+                with torch.no_grad():
+                    all_embeddings[classname] = clip_model.encode_text(text_tokens).cpu().numpy()
+
+            # Select open classnames based on diversity maximization
+            while len(open_classnames) < num_classes:
+                max_distance = -np.inf
+                best_candidate = None
+                for classname, embedding in all_embeddings.items():
+                    if classname in known_classnames or classname in open_classnames:
+                        continue
+                    min_distance = np.min(np.linalg.norm(known_embeddings - embedding, axis=1))
+                    if min_distance > max_distance:
+                        max_distance = min_distance
+                        best_candidate = classname
+                if best_candidate:
+                    open_classnames.add(best_candidate)
+
+            return list(open_classnames)
+
 
         if use_open_classnames:
             # open_classnames = get_open_classnames_im21k()
-            open_classnames = get_open_classnames_ontology(classnames)
+            # open_classnames = get_open_classnames_ontology(classnames)
+            open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
             model = coop.CustomCLIP(classnames+open_classnames, clip_model)
             criterion.num_classes = len(classnames)
         else:
