@@ -311,8 +311,6 @@ class CoOp(TrainerX):
         self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
         self.register_model("prompt_learner", self.model.prompt_learner, self.optim, self.sched)
 
-        breakpoint()
-
         self.scaler = GradScaler() if cfg.TRAINER.COOP.PREC == "amp" else None
 
         # Note that multi-gpu training could be slow because CLIP's size is
