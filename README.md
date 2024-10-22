@@ -20,10 +20,12 @@ Download and unzip at the root directory: `lba-osr/output/`.
 Zero-shot OSR classification
 
 ```base
-python osr.py --dataset <DATASET> --loss <LOSS> --eval
+python osr.py --dataset <DATASET> --loss <LOSS> --eval --clip-model ViT-B/32 --coop coop
 ```
 
-Option --loss can be one of ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus. --dataset is one of mnist/svhn/cifar10/cifar100/tiny_imagenet. 
+Option `--loss` can be one of `ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus`. --dataset is one of `mnist/svhn/cifar10/cifar100/tiny_imagenet`.  
+`--clip-model` can be one of `["RN50", "ViT-B/32", "ViT-B/16"]`.  
+` --coop` can be one of `['vanilla', 'coop', 'cocoop', 'cocoop2']`.  
 
 
 ## References
