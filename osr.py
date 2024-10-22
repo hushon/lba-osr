@@ -270,7 +270,6 @@ def main_worker(options):
             # open_classnames = get_open_classnames_im21k()
             # open_classnames = get_open_classnames_ontology(classnames)
             open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
-            breakpoint()
             model = get_coop_model(classnames+open_classnames, clip_model)
             criterion.num_classes = len(classnames)
         else:
