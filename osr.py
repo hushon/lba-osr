@@ -52,6 +52,7 @@ parser.add_argument('--weight-pl', type=float, default=0.1, help="weight for cen
 parser.add_argument('--beta', type=float, default=0.1, help="weight for entropy loss")
 parser.add_argument('--model', type=str, default='classifier32')
 parser.add_argument('--clip-model', type=str, default='ViT-B/16', help="RN50 | ViT-B/32 | ViT-B/16")
+parser.add_argument('--coop', type=str, default='coop', choices=['vanilla', 'coop', 'cocoop', 'cocoop2'])
 
 # misc
 parser.add_argument('--nz', type=int, default=100)
@@ -236,12 +237,35 @@ def main_worker(options):
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         '''
 
+        def get_clip_model():
+            import coop
+            if options['clip_model'] == "RN50":
+                clip_model = coop.load_clip_to_cpu("RN50").float()
+            elif options['clip_model'] == "ViT-B/32":
+                clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
+            elif options['clip_model'] == "ViT-B/16":
+                clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
+            else:
+                raise ValueError("Unsupported clip model: {}".format(options['clip_model']))
+            return clip_model
+
         def get_coop_model(classnames, clip_model):
+            import coop
             model = coop.CustomCLIP(classnames, clip_model)
-            # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
-            # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
-            # checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
-            checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+            if options['coop'] == 'coop':
+                if options['clip_model'] == "RN50":
+                    checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+                elif options['clip_model'] == "ViT-B/32":
+                    checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+                else:
+                    raise ValueError()
+            elif options['coop'] == 'cocoop':
+                if options['clip_model'] == "ViT-B/16":
+                    checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
+            elif options['coop'] == 'cocoop2':
+                checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+            else:
+                raise ValueError()
             state_dict = checkpoint['state_dict']
             '''CoCoOp 에서 meta_net 제대로 가져오는지 확인 필요'''
 
@@ -255,15 +279,7 @@ def main_worker(options):
 
             return model
 
-        import coop
-        if options['clip_model'] == "RN50":
-            clip_model = coop.load_clip_to_cpu("RN50").float()
-        elif options['clip_model'] == "ViT-B/32":
-            clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
-        elif options['clip_model'] == "ViT-B/16":
-            clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
-        else:
-            raise ValueError("Unsupported clip model: {}".format(options['clip_model']))
+        clip_model = get_clip_model()
 
 
         if options['loss'] == "SoftmaxPlus":  ## use open_classnames
