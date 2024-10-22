@@ -213,41 +213,25 @@ def main_worker(options):
         # Generate open classnames using Diversity Maximization approach with CLIP embeddings
         def get_open_classnames_diversity_maximization(known_classnames, clip_model, num_classes=1000):
             with open('./coop_clip/imagenet21k_wordnet_lemmas.txt', 'r') as file:
-                all_classnames = [line.strip() for line in file.readlines()]
-            # Get embeddings for known classnames
-            known_embeddings = []
-            for classname in known_classnames:
-                breakpoint()
-                text_tokens = clip_model.tokenize([classname])
-                with torch.no_grad():
-                    known_embedding = clip_model.encode_text(text_tokens).cpu().numpy()
-                known_embeddings.append(known_embedding)
-            known_embeddings = np.vstack(known_embeddings)
+                open_classnames = [line.strip() for line in file.readlines()]
 
-            open_classnames = set()
-            all_embeddings = {}
+            all_classnames = known_classnames + open_classnames
 
-            # Precompute embeddings for all classnames
-            for classname in all_classnames:
-                text_tokens = coop.tokenize([classname])
-                with torch.no_grad():
-                    all_embeddings[classname] = clip_model.encode_text(text_tokens).cpu().numpy()
+            model = coop.CustomCLIP(known_classnames, clip_model)
+            text_features = model.text_encoder(
+                model.prompt_learner(),
+                model.tokenized_prompts
+            )
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
-            # Select open classnames based on diversity maximization
-            while len(open_classnames) < num_classes:
-                max_distance = -np.inf
-                best_candidate = None
-                for classname, embedding in all_embeddings.items():
-                    if classname in known_classnames or classname in open_classnames:
-                        continue
-                    min_distance = np.min(np.linalg.norm(known_embeddings - embedding, axis=1))
-                    if min_distance > max_distance:
-                        max_distance = min_distance
-                        best_candidate = classname
-                if best_candidate:
-                    open_classnames.add(best_candidate)
+            from coreset import greedy_coreset_sampling
+            initial_indices = list(range(len(known_classnames)))
+            coreset_indices = greedy_coreset_sampling(text_features, len(known_classnames) + num_classes, initial_indices, metric='dot_product')
+            coreset_indices = coreset_indices[len(known_classnames):]
 
-            return list(open_classnames)
+            selected_open_classnames = [all_classnames[i] for i in coreset_indices]
+
+            return selected_open_classnames
 
         '''CustomCLIP 에서 text feature 받아오는법:
             model = CustomCLIP(classnames, clip_model)
@@ -255,7 +239,7 @@ def main_worker(options):
                 model.prompt_learner(),
                 model.tokenized_prompts
             )
-            text_features = self.text_features / self.text_features.norm(dim=-1, keepdim=True)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         '''
 
 
