@@ -162,19 +162,9 @@ def main_worker(options):
         else:
             raise NotImplementedError
 
-        import coop, random
-        if options['clip_model'] == "RN50":
-            clip_model = coop.load_clip_to_cpu("RN50").float()
-        elif options['clip_model'] == "ViT-B/32":
-            clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
-        elif options['clip_model'] == "ViT-B/16":
-            clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
-        else:
-            raise ValueError("Unsupported clip model: {}".format(options['clip_model']))
-
-        use_open_classnames = (options['loss'] == "SoftmaxPlus")
 
         def get_open_classnames_im21k():
+            import random
             # from coop_clip.imagenet_classnames import classnames as open_classnames
             # open_classnames = list(open_classnames.values())
             with open('./coop_clip/imagenet21k_wordnet_lemmas.txt', 'r') as file:
@@ -265,11 +255,21 @@ def main_worker(options):
 
             return model
 
+        import coop
+        if options['clip_model'] == "RN50":
+            clip_model = coop.load_clip_to_cpu("RN50").float()
+        elif options['clip_model'] == "ViT-B/32":
+            clip_model = coop.load_clip_to_cpu("ViT-B/32").float()
+        elif options['clip_model'] == "ViT-B/16":
+            clip_model = coop.load_clip_to_cpu("ViT-B/16").float()
+        else:
+            raise ValueError("Unsupported clip model: {}".format(options['clip_model']))
 
-        if use_open_classnames:
-            # open_classnames = get_open_classnames_im21k()
+
+        if options['loss'] == "SoftmaxPlus":  ## use open_classnames
+            open_classnames = get_open_classnames_im21k()
             # open_classnames = get_open_classnames_ontology(classnames)
-            open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
+            # open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
             model = get_coop_model(classnames+open_classnames, clip_model)
             criterion.num_classes = len(classnames)
         else:
