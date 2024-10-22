@@ -262,8 +262,13 @@ def main_worker(options):
             elif options['coop'] == 'cocoop':
                 if options['clip_model'] == "ViT-B/16":
                     checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
+                else:
+                    raise ValueError()
             elif options['coop'] == 'cocoop2':
-                checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+                if options['clip_model'] == "ViT-B/16":
+                    checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+                else:
+                    raise ValueError()
             else:
                 raise ValueError()
             state_dict = checkpoint['state_dict']
