@@ -249,6 +249,15 @@ def main_worker(options):
 
             return list(open_classnames)
 
+        '''CustomCLIP 에서 text feature 받아오는법:
+            model = CustomCLIP(classnames, clip_model)
+            text_features = model.text_encoder(
+                model.prompt_learner(),
+                model.tokenized_prompts
+            )
+            text_features = self.text_features / self.text_features.norm(dim=-1, keepdim=True)
+        '''
+
 
         if use_open_classnames:
             # open_classnames = get_open_classnames_im21k()
