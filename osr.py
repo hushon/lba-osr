@@ -51,7 +51,7 @@ parser.add_argument('--num-centers', type=int, default=1)
 parser.add_argument('--weight-pl', type=float, default=0.1, help="weight for center loss")
 parser.add_argument('--beta', type=float, default=0.1, help="weight for entropy loss")
 parser.add_argument('--model', type=str, default='classifier32')
-parser.add_argument('--clip-model', type=str, default='ViT-B/16', help="RN50 | ViT-B/32 | ViT-B/16")
+parser.add_argument('--clip-model', type=str, default='ViT-B/32', choices=["RN50", "ViT-B/32", "ViT-B/16"])
 parser.add_argument('--coop', type=str, default='coop', choices=['vanilla', 'coop', 'cocoop', 'cocoop2'])
 
 # misc
