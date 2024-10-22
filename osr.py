@@ -218,11 +218,12 @@ def main_worker(options):
             all_classnames = known_classnames + open_classnames
 
             model = get_coop_model(all_classnames, clip_model)
-            text_features = model.text_encoder(
-                model.prompt_learner(),
-                model.tokenized_prompts
-            )
-            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+            with torch.no_grad():
+                text_features = model.text_encoder(
+                    model.prompt_learner(),
+                    model.tokenized_prompts
+                )
+                text_features = text_features / text_features.norm(dim=-1, keepdim=True)
             '''
             checkpoint load 는 어떻게?
             '''
@@ -269,6 +270,7 @@ def main_worker(options):
             # open_classnames = get_open_classnames_im21k()
             # open_classnames = get_open_classnames_ontology(classnames)
             open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
+            breakpoint()
             model = get_coop_model(classnames+open_classnames, clip_model)
             criterion.num_classes = len(classnames)
         else:
