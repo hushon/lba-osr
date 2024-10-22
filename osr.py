@@ -251,7 +251,13 @@ def main_worker(options):
 
         def get_coop_model(classnames, clip_model):
             import coop
-            model = coop.CustomCLIP(classnames, clip_model)
+            if options['coop'] == 'vanilla':
+                model = coop.VanillaCLIP(classnames)
+            elif 'coop' in options['coop']:
+                model = coop.CustomCLIP(classnames, clip_model)
+            else:
+                raise ValueError()
+
             if options['coop'] == 'coop':
                 if options['clip_model'] == "RN50":
                     checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
