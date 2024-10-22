@@ -47,10 +47,12 @@ def greedy_coreset_sampling(data, coreset_size, initial_indices, metric='euclide
     
     return np.array(coreset_indices)
 
-# Example usage
-data = np.random.randn(100, 128)  # 100 points in 128-dimensional space
-coreset_size = 20
-initial_indices = np.random.choice(100, 10, replace=False)  # Randomly select 10 initial points
-metric = 'cosine'  # Choose 'euclidean', 'cosine', or 'dot_product'
-coreset_indices = greedy_coreset_sampling(data, coreset_size, initial_indices, metric)
-print("Selected coreset indices:", coreset_indices)
+
+if __name__ == '__main__':
+    # Example usage
+    data = np.random.randn(100, 128)  # 100 points in 128-dimensional space
+    coreset_size = 20
+    initial_indices = np.random.choice(100, 10, replace=False)  # Randomly select 10 initial points
+    metric = 'cosine'  # Choose 'euclidean', 'cosine', or 'dot_product'
+    coreset_indices = greedy_coreset_sampling(data, coreset_size, initial_indices, metric)
+    print("Selected coreset indices:", coreset_indices)
