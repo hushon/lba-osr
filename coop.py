@@ -45,6 +45,8 @@ class TextEncoder(nn.Module):
         self.dtype = clip_model.dtype
 
     def forward(self, prompts, tokenized_prompts):
+        '''prompt 는 context 까지 붙은 임베딩. tokenized_prompt 는 EOT 토큰 위치때문에 있는것.'''
+        '''원래 clip_model.encode_text() 는 임베딩 대신 token을 입력받음.'''
         x = prompts + self.positional_embedding.type(self.dtype)
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
