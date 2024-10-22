@@ -223,6 +223,9 @@ def main_worker(options):
                 model.tokenized_prompts
             )
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+            '''
+            checkpoint load 는 어떻게?
+            '''
 
             from coreset import greedy_coreset_sampling
             initial_indices = list(range(len(known_classnames)))
