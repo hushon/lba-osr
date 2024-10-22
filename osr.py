@@ -217,7 +217,7 @@ def main_worker(options):
 
             all_classnames = known_classnames + open_classnames
 
-            model = coop.CustomCLIP(known_classnames, clip_model)
+            model = get_coop_model(all_classnames, clip_model)
             text_features = model.text_encoder(
                 model.prompt_learner(),
                 model.tokenized_prompts
@@ -245,30 +245,34 @@ def main_worker(options):
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         '''
 
+        def get_coop_model(classnames, clip_model):
+            model = coop.CustomCLIP(classnames, clip_model)
+            # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+            # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
+            # checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
+            checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
+            state_dict = checkpoint['state_dict']
+            '''CoCoOp 에서 meta_net 제대로 가져오는지 확인 필요'''
+
+            # Ignore fixed token vectors
+            if "token_prefix" in state_dict:
+                del state_dict["token_prefix"]
+
+            if "token_suffix" in state_dict:
+                del state_dict["token_suffix"]
+            model.prompt_learner.load_state_dict(state_dict, strict=False)
+
+            return model
+
 
         if use_open_classnames:
             # open_classnames = get_open_classnames_im21k()
             # open_classnames = get_open_classnames_ontology(classnames)
             open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
-            model = coop.CustomCLIP(classnames+open_classnames, clip_model)
+            model = get_coop_model(classnames+open_classnames, clip_model)
             criterion.num_classes = len(classnames)
         else:
-            model = coop.CustomCLIP(classnames, clip_model)
-
-        # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
-        # checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
-        # checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
-        checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
-        state_dict = checkpoint['state_dict']
-        '''CoCoOp 에서 meta_net 제대로 가져오는지 확인 필요'''
-
-        # Ignore fixed token vectors
-        if "token_prefix" in state_dict:
-            del state_dict["token_prefix"]
-
-        if "token_suffix" in state_dict:
-            del state_dict["token_suffix"]
-        model.prompt_learner.load_state_dict(state_dict, strict=False)
+            model = get_coop_model(classnames, clip_model)
 
         net = model.cuda()
 
