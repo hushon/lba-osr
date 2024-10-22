@@ -260,6 +260,7 @@ def main_worker(options):
         # checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
         checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
         state_dict = checkpoint['state_dict']
+        '''CoCoOp 에서 meta_net 제대로 가져오는지 확인 필요'''
 
         # Ignore fixed token vectors
         if "token_prefix" in state_dict:
