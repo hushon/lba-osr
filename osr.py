@@ -253,7 +253,7 @@ def main_worker(options):
         def get_coop_model(classnames, clip_model):
             import coop
             if options['coop'] == 'vanilla':
-                model = coop.VanillaCLIP(classnames)
+                model = coop.VanillaCLIP(classnames, options['clip_model'])
             elif 'coop' in options['coop']:
                 model = coop.CustomCLIP(classnames, clip_model)
             else:
