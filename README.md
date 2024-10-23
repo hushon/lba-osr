@@ -26,7 +26,18 @@ python osr.py --dataset <DATASET> --loss <LOSS> --eval --clip-model ViT-B/32 --c
 Option `--loss` can be one of `ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus`. --dataset is one of `mnist/svhn/cifar10/cifar100/tiny_imagenet`.  
 `--clip-model` can be one of `["RN50", "ViT-B/32", "ViT-B/16"]`.  
 ` --coop` can be one of `['vanilla', 'coop', 'cocoop', 'cocoop2']`.  
-When using `SoftmaxPlus` loss, specify `--oe-mode` in one of `[None, 'random', 'wordnet', 'coreset']`. 
+When using `SoftmaxPlus` loss, specify `--oe-mode` in one of `[None, 'random', 'wordnet', 'coreset']`.  
+
+
+## Open-vocabulary exposure types
+
+Open-vocabulary exposure (OE) has following types. 
+
+| OE mode | description |
+|---|---|
+| `random` | randomly sample 1000 OE classes from IM21k classes |
+| `wordnet` | sample 1000 OE classes from IM21k classes using WordNet hierarchy |
+| `coreset` | sample 1000 OE classes from IM21k classes using text embedding and greedy coreset selection algorithm |
 
 
 ## References
