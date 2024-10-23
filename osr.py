@@ -53,6 +53,7 @@ parser.add_argument('--beta', type=float, default=0.1, help="weight for entropy 
 parser.add_argument('--model', type=str, default='classifier32')
 parser.add_argument('--clip-model', type=str, default='ViT-B/32', choices=["RN50", "ViT-B/32", "ViT-B/16"])
 parser.add_argument('--coop', type=str, default='coop', choices=['vanilla', 'coop', 'cocoop', 'cocoop2'])
+parser.add_argument('--oe-mode', type=str, default=None, choices=[None, 'random', 'wordnet', 'coreset'])
 
 # misc
 parser.add_argument('--nz', type=int, default=100)
@@ -294,9 +295,14 @@ def main_worker(options):
 
 
         if options['loss'] == "SoftmaxPlus":  ## use open_classnames
-            open_classnames = get_open_classnames_im21k()
-            # open_classnames = get_open_classnames_ontology(classnames)
-            # open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
+            if options['oe_mode'] == 'random':
+                open_classnames = get_open_classnames_im21k()
+            elif options['oe_mode'] == 'wordnet':
+                open_classnames = get_open_classnames_ontology(classnames)
+            elif options['oe_mode'] == 'coreset':
+                open_classnames = get_open_classnames_diversity_maximization(classnames, clip_model, num_classes=1000)
+            else:
+                raise ValueError()
             model = get_coop_model(classnames+open_classnames, clip_model)
             criterion.num_classes = len(classnames)
         else:
