@@ -52,7 +52,7 @@ parser.add_argument('--weight-pl', type=float, default=0.1, help="weight for cen
 parser.add_argument('--beta', type=float, default=0.1, help="weight for entropy loss")
 parser.add_argument('--model', type=str, default='classifier32')
 parser.add_argument('--clip-model', type=str, default='ViT-B/32', choices=["RN50", "ViT-B/32", "ViT-B/16"])
-parser.add_argument('--coop', type=str, default='coop', choices=['vanilla', 'coop', 'cocoop', 'cocoop2'])
+parser.add_argument('--coop', type=str, default='coop', choices=['vanilla', 'coop_c16', 'cocoop_c4', 'cocoop_c16'])
 parser.add_argument('--oe-mode', type=str, default=None, choices=[None, 'random', 'wordnet', 'coreset'])
 
 # misc
@@ -259,23 +259,25 @@ def main_worker(options):
             else:
                 raise ValueError()
 
-            if options['coop'] == 'coop':
+            if options['coop'] == 'coop_c16':
                 if options['clip_model'] == "RN50":
                     checkpoint = coop.load_checkpoint('output/imagenet/CoOp/rn50_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
                 elif options['clip_model'] == "ViT-B/32":
                     checkpoint = coop.load_checkpoint('output/imagenet/CoOp/vit_b32_ep50_16shots/nctx16_cscFalse_ctpend/seed1/prompt_learner/model.pth.tar-50')
                 else:
                     raise ValueError()
-            elif options['coop'] == 'cocoop':
+            elif options['coop'] == 'cocoop_c4':
                 if options['clip_model'] == "ViT-B/16":
                     checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c4_ep10_batch1_ctxv1/seed1/prompt_learner/model.pth.tar-10')
                 else:
                     raise ValueError()
-            elif options['coop'] == 'cocoop2':
+            elif options['coop'] == 'cocoop_c16':
                 if options['clip_model'] == "ViT-B/16":
                     checkpoint = coop.load_checkpoint('output/base2new/train_base/imagenet/shots_16/CoCoOp/vit_b16_c16_ep10_batch1/seed1/prompt_learner/model.pth.tar-10')
                 else:
                     raise ValueError()
+            elif options['coop'] == 'vanilla':
+                pass
             else:
                 raise ValueError()
             state_dict = checkpoint['state_dict']
