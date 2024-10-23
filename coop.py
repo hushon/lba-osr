@@ -267,12 +267,17 @@ class VanillaCLIP(nn.Module):
     #     logits_per_image, logits_per_text = self.model(image, text)
     #     return logits_per_image
     def forward(self, image, return_feature=False):
-        assert not return_feature
         self.create_classifier_weights()
         image_features = self.model.encode_image(image)
+        feat = image_features.clone()
+
         image_features /= image_features.norm(dim=-1, keepdim=True)
         logits = 100. * image_features @ self.zeroshot_weights
-        return logits
+
+        if return_feature:
+            return feat, logits
+        else:
+            return None, logits
 
 
 @TRAINER_REGISTRY.register()
