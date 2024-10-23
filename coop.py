@@ -247,6 +247,9 @@ class VanillaCLIP(nn.Module):
             return
 
         with open("coop_clip/templates.json", "r") as f:
+            '''프롬프트 템플릿 로딩
+            데이터셋 종류에 따라 다르게 선택
+            '''
             # templates = json.load(f)['imagenet']
             templates = json.load(f)['cifar100']
 
