@@ -26,6 +26,7 @@ python osr.py --dataset <DATASET> --loss <LOSS> --eval --clip-model ViT-B/32 --c
 Option `--loss` can be one of `ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus`. --dataset is one of `mnist/svhn/cifar10/cifar100/tiny_imagenet`.  
 `--clip-model` can be one of `["RN50", "ViT-B/32", "ViT-B/16"]`.  
 ` --coop` can be one of `['vanilla', 'coop', 'cocoop', 'cocoop2']`.  
+When using `SoftmaxPlus` loss, specify `--oe-mode` in one of `[None, 'random', 'wordnet', 'coreset']`. 
 
 
 ## References
