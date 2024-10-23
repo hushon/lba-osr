@@ -310,7 +310,7 @@ def main_worker(options):
         else:
             model = get_coop_model(classnames, clip_model)
 
-        net = model.cuda()
+        net = model.eval().cuda()
 
         # net = coop.VanillaCLIP(classnames).cuda()
 
