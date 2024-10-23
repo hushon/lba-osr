@@ -28,6 +28,11 @@ Option `--loss` can be one of `ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus`. `--d
 ` --coop` can be one of `['vanilla', 'coop_c16', 'cocoop_c4', 'cocoop_c16']`.  
 When using `SoftmaxPlus` loss, specify `--oe-mode` in one of `[None, 'random', 'wordnet', 'coreset']`.  
 
+*Example command*
+```bash
+python osr.py --dataset cifar10 --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode coreset
+```
+
 
 ## Open-vocabulary exposure
 
