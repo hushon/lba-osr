@@ -311,6 +311,10 @@ def main_worker(options):
 
         return results
 
+
+
+    '''--eval 옵션때는 여기까지'''
+
     params_list = [{'params': net.parameters()},
                 {'params': criterion.parameters()}]
     
