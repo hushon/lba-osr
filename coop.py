@@ -266,7 +266,8 @@ class VanillaCLIP(nn.Module):
     #     text = orig_clip.tokenize([f"a photo of a {c}" for c in self.classnames]).to(image.device)
     #     logits_per_image, logits_per_text = self.model(image, text)
     #     return logits_per_image
-    def forward(self, image):
+    def forward(self, image, return_feature=False):
+        assert not return_feature
         self.create_classifier_weights()
         image_features = self.model.encode_image(image)
         image_features /= image_features.norm(dim=-1, keepdim=True)
