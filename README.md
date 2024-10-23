@@ -29,9 +29,9 @@ Option `--loss` can be one of `ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus`. --da
 When using `SoftmaxPlus` loss, specify `--oe-mode` in one of `[None, 'random', 'wordnet', 'coreset']`.  
 
 
-## Open-vocabulary exposure types
+## Open-vocabulary exposure
 
-Open-vocabulary exposure (OE) has following types. 
+Open-vocabulary exposure (OE) has following modes. 
 
 | OE mode | description |
 |---|---|
