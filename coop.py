@@ -233,10 +233,10 @@ import clip as orig_clip
 
 
 class VanillaCLIP(nn.Module):
-    def __init__(self, classnames):
+    def __init__(self, classnames, clip_model_name):
         super().__init__()
-        # self.model, self.preprocess = orig_clip.load("RN50", device="cpu")
-        self.model, self.preprocess = orig_clip.load("ViT-B/32", device="cpu")
+        assert clip_model_name in ["RN50", "ViT-B/32"]
+        self.model, self.preprocess = orig_clip.load(clip_model_name, device="cpu")
         self.classnames = classnames
 
         # self.tokenized_classnames = orig_clip.tokenize([f"a photo of a {c}" for c in classnames])
