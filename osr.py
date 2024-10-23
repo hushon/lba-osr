@@ -280,16 +280,18 @@ def main_worker(options):
                 pass
             else:
                 raise ValueError()
-            state_dict = checkpoint['state_dict']
-            '''CoCoOp 에서 meta_net 제대로 가져오는지 확인 필요'''
+            
+            if 'coop' in options['coop']:
+                state_dict = checkpoint['state_dict']
+                '''CoCoOp 에서 meta_net 제대로 가져오는지 확인 필요'''
 
-            # Ignore fixed token vectors
-            if "token_prefix" in state_dict:
-                del state_dict["token_prefix"]
+                # Ignore fixed token vectors
+                if "token_prefix" in state_dict:
+                    del state_dict["token_prefix"]
 
-            if "token_suffix" in state_dict:
-                del state_dict["token_suffix"]
-            model.prompt_learner.load_state_dict(state_dict, strict=False)
+                if "token_suffix" in state_dict:
+                    del state_dict["token_suffix"]
+                model.prompt_learner.load_state_dict(state_dict, strict=False)
 
             return model
 
@@ -311,8 +313,6 @@ def main_worker(options):
             model = get_coop_model(classnames, clip_model)
 
         net = model.eval().cuda()
-
-        # net = coop.VanillaCLIP(classnames).cuda()
 
         results = test(net, criterion, testloader, outloader, epoch=0, **options)
         print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
