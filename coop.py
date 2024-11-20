@@ -107,7 +107,7 @@ class PromptLearner(nn.Module):
         name_lens = [len(_tokenizer.encode(name)) for name in classnames]
         prompts = [prompt_prefix + " " + name + "." for name in classnames]
 
-        tokenized_prompts = torch.cat([clip.tokenize(p) for p in prompts])
+        tokenized_prompts = torch.cat([clip.tokenize(p) for p in prompts]).to(clip_model.token_embedding.weight.device)
         with torch.no_grad():
             embedding = clip_model.token_embedding(tokenized_prompts).type(dtype)
 
@@ -194,6 +194,7 @@ class PromptLearner(nn.Module):
 class CustomCLIP(nn.Module):
     def __init__(self, classnames, clip_model):
         super().__init__()
+        self.clip_model = clip_model
         self.prompt_learner = PromptLearner(classnames, clip_model)
         self.tokenized_prompts = self.prompt_learner.tokenized_prompts
         self.image_encoder = clip_model.visual
@@ -201,6 +202,12 @@ class CustomCLIP(nn.Module):
         self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
         # self._compute_text_embeddings()
+
+    def initialize_classnames(self, classnames):
+        state_dict = self.prompt_learner.state_dict()
+        self.prompt_learner = PromptLearner(classnames, self.clip_model)
+        self.tokenized_prompts = self.prompt_learner.tokenized_prompts
+        self.prompt_learner.load_state_dict(state_dict)
 
     def _compute_text_embeddings(self):
         prompts = self.prompt_learner()

@@ -1,0 +1,78 @@
+[
+    {
+        "videoType": "scene",
+        "answers": [
+            "Since Dokyung wanted to kick the old man.",
+            "Just because Dokyung wanted to buy some snacks from the old man.",
+            "Because Dokyung tried to give Dokyung's umbrella to the old man.",
+            "As Dokyung wanted to take the clothes away from the old man.",
+            "It was because Dokyung wanted to run away from Haeyoung1."
+        ],
+        "vid": "AnotherMissOh17_001_0000",
+        "qid": 13041,
+        "shot_contained": [
+            25,
+            49
+        ],
+        "q_level_mem": 3,
+        "que": "Why did Dokyung go to the old man?",
+        "q_level_logic": 4
+    },
+    {
+        "videoType": "scene",
+        "answers": [
+            "Haeyoung1 seemed to be happy and glad about what Dokyung said.",
+            "Haeyoung1 looked to be mad to hear it late.",
+            "Haeyoung1 was angry with Dokyung for not cleaning the house.",
+            "Haeyoung1 became curious about Dokyung's background.",
+            "Haeyoung1 got irritated by the behavior of Dokyung."
+        ],
+        "vid": "AnotherMissOh17_001_0000",
+        "qid": 13037,
+        "shot_contained": [
+            25,
+            49
+        ],
+        "q_level_mem": 3,
+        "que": "How did Haeyoung1 feel when Haeyoung1 heard that Dokyung loved Haeyoung1?",
+        "q_level_logic": 3
+    },
+    {
+        "videoType": "shot",
+        "answers": [
+            "Haeyoung1's shirt is pink.",
+            "Haeyoung1's shirt is green.",
+            "Haeyoung1's shirt is blue.",
+            "Haeyoung1's shirt is yellow.",
+            "Haeyoung1's shirt is purple."
+        ],
+        "q_level_logic": 1,
+        "qid": 995169,
+        "shot_contained": [
+            78
+        ],
+        "q_level_mem": 2,
+        "que": "What is the color of Haeyoung1's shirt?",
+        "vid": "AnotherMissOh01_001_0078",
+        "correct_idx": 2
+    },
+    {
+        "videoType": "shot",
+        "answers": [
+            "Haeyoung1 is wearing an earring.",
+            "Haeyoung1 is wearing a car.",
+            "Haeyoung1 is wearing shoes.",
+            "Haeyoung1 is wearing a bag.",
+            "Haeyoung1 is wearing a straw."
+        ],
+        "q_level_logic": 1,
+        "qid": 9947760,
+        "shot_contained": [
+            78
+        ],
+        "q_level_mem": 2,
+        "que": "What kind of jewelry is Haeyoung1 wearing?",
+        "vid": "AnotherMissOh01_001_0078",
+        "correct_idx": 0
+    }
+]

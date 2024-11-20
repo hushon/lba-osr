@@ -25,12 +25,12 @@ python osr.py --dataset <DATASET> --loss <LOSS> --eval --clip-model ViT-B/32 --c
 
 Option `--loss` can be one of `ARPLoss/RPLoss/GCPLoss/Softmax/SoftmaxPlus`. `--dataset` is one of `mnist/svhn/cifar10/cifar100/tiny_imagenet`.  
 `--clip-model` can be one of `["RN50", "ViT-B/32", "ViT-B/16"]`.  
-` --coop` can be one of `['vanilla', 'coop_c16', 'cocoop_c4', 'cocoop_c16']`.  
+`--coop` can be one of `['vanilla', 'coop_c16', 'cocoop_c4', 'cocoop_c16']`.  
 When using `SoftmaxPlus` loss, specify `--oe-mode` in one of `[None, 'random', 'wordnet', 'coreset']`.  
 
 *Example command*
 ```bash
-python osr.py --dataset cifar10 --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode coreset
+python osr.py --dataset cifar10 --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode random
 ```
 
 
@@ -43,6 +43,18 @@ Open-vocabulary exposure (OE) has following modes.
 | `random` | randomly sample 1000 OE classes from IM21k classes |
 | `wordnet` | sample 1000 OE classes from IM21k classes using WordNet hierarchy |
 | `coreset` | sample 1000 OE classes from IM21k classes using text embedding and greedy coreset selection algorithm |
+
+
+## LBA keyframe selection
+
+*Example input*: `./lba_sample_input/input.json`
+
+Run keyframe selection 
+```bash
+python lba-keyframe-selection-demo.py --dataset cifar10 --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode random
+```
+
+The output is saved at `./lba_sample_input/output.json`.
 
 
 ## References

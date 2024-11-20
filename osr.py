@@ -39,7 +39,7 @@ parser.add_argument('--outf', type=str, default='./log')
 parser.add_argument('--out-num', type=int, default=50, help='For CIFAR100')
 
 # optimization
-parser.add_argument('--batch-size', type=int, default=64)
+parser.add_argument('--batch-size', type=int, default=32)
 parser.add_argument('--lr', type=float, default=0.1, help="learning rate for model")
 parser.add_argument('--gan_lr', type=float, default=0.0002, help="learning rate for gan")
 parser.add_argument('--max-epoch', type=int, default=100)
@@ -254,8 +254,12 @@ def main_worker(options):
             import coop
             if options['coop'] == 'vanilla':
                 model = coop.VanillaCLIP(classnames, options['clip_model'])
-            elif 'coop' in options['coop']:
+            elif options['coop'] == 'coop_c16':
                 model = coop.CustomCLIP(classnames, clip_model)
+            elif options['coop'] in ['cocoop_c4', 'cocoop_c16']:
+                import cocoop
+                cfg = None
+                model = cocoop.CustomCLIP(cfg, classnames, clip_model)
             else:
                 raise ValueError()
 
@@ -291,7 +295,8 @@ def main_worker(options):
 
                 if "token_suffix" in state_dict:
                     del state_dict["token_suffix"]
-                model.prompt_learner.load_state_dict(state_dict, strict=False)
+                print(model.prompt_learner.load_state_dict(state_dict, strict=False))
+                model.prompt_learner.float()
 
             return model
 
@@ -314,7 +319,8 @@ def main_worker(options):
 
         net = model.eval().cuda()
 
-        results = test(net, criterion, testloader, outloader, epoch=0, **options)
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            results = test(net, criterion, testloader, outloader, epoch=0, **options)
         print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
 
         return results
