@@ -51,7 +51,7 @@ Open-vocabulary exposure (OE) has following modes.
 
 Run keyframe selection 
 ```bash
-python lba-keyframe-selection-demo.py --dataset cifar10 --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode random
+python lba-keyframe-selection-demo.py --dataset lba --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode random
 ```
 
 The output is saved at `./lba_sample_input/output.json`.
