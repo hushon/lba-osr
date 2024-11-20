@@ -54,6 +54,8 @@ Run keyframe selection
 python lba-keyframe-selection-demo.py --dataset lba --loss SoftmaxPlus --eval --clip-model ViT-B/32 --coop coop_c16 --oe-mode random
 ```
 
+This will select the best-matching keyframes up to 10 frames per QA pair. 
+
 The output is saved at `./lba_sample_input/output.json`.
 
 

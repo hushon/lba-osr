@@ -452,7 +452,10 @@ def main_worker(options):
                 top_index = torch.topk(score, num_k, sorted=False).indices.sort().values
                 best_image_paths = [str(image_paths[i]) for i in top_index]
 
-                results.append(best_image_paths)
+                results.append({
+                    "keyframes": best_image_paths,
+                    "scores": score[top_index].tolist(),
+                })
             
             # write best_image_paths to a json file
             with open("./lba_sample_input/output.json", "w") as fp:
