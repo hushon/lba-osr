@@ -444,12 +444,12 @@ def main_worker(options):
                 net.cuda()
 
                 _, logits = net(images, True)
-                score = logits.div(1.0).softmax(1)[:, 0]
+                score = logits.div(1.0).softmax(1)[:, 0].cpu()
 
                 # get top-matching images
                 num_k = len(images) // 2  # select top 50%
                 num_k = min(num_k, 10)  # truncate if over 10 images
-                top_index = torch.topk(score, num_k).indices
+                top_index = torch.topk(score, num_k, sorted=False).indices.sort().values
                 best_image_paths = [str(image_paths[i]) for i in top_index]
 
                 results.append(best_image_paths)
