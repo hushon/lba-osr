@@ -451,8 +451,8 @@ def main_worker(options):
         num_k = min(num_k, 10)  # truncate if over 10 images
         top_index = torch.topk(score, num_k, sorted=False).indices.sort().values
 
-        keyframes: List[Image] = [img_list[i] for i in top_index]
-        scores = score[top_index].tolist()
+        keyframes: List[Image] = [img_list[i] for i in top_index]  # list of PIL Image
+        scores = score[top_index].tolist()  # list of floats
         return {
             "keyframes": keyframes,
             "scores": scores
