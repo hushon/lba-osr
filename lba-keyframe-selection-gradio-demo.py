@@ -432,40 +432,38 @@ def main_worker(options):
     net = model.eval().cuda()
 
 
-    import tqdm.auto as tqdm
-    with torch.no_grad():
-        with torch.cuda.amp.autocast(enabled=False, dtype=torch.bfloat16):
-            results = []
-            for sample in tqdm.tqdm(Data):
-                images = torch.stack(sample["images"]).cuda()
-                text = sample["question_text"]
-                image_paths = sample["image_paths"]
+    # Gradio 인터페이스 생성
+    from typing import List
+    from PIL.Image import Image
+    def keyframe_select_inference(img_list: List[Image], text: str) -> dict:
+        images = torch.stack([image_transform(img) for img in img_list]).cuda()
+        text = question_transform(text)
 
-                net.initialize_classnames([text]+open_classnames)
-                net.cuda()
+        net.initialize_classnames([text]+open_classnames)
+        net.cuda()
 
-                _, logits = net(images, True)
-                score = logits.div(1.0).softmax(1)[:, 0].cpu()
+        with torch.no_grad():
+            _, logits = net(images, True)
+        score = logits.div(1.0).softmax(1)[:, 0].cpu()
 
-                # get top-matching images
-                num_k = len(images) // 2  # select top 50%
-                num_k = min(num_k, 10)  # truncate if over 10 images
-                top_index = torch.topk(score, num_k, sorted=False).indices.sort().values
-                best_image_paths = [str(image_paths[i]) for i in top_index]
+        # get top-matching images
+        num_k = len(images) // 2  # select top 50%
+        num_k = min(num_k, 10)  # truncate if over 10 images
+        top_index = torch.topk(score, num_k, sorted=False).indices.sort().values
 
-                results.append({
-                    "keyframes": best_image_paths,
-                    "scores": score[top_index].tolist(),
-                })
-            
-            # write best_image_paths to a json file
-            with open("./lba_sample_input/output.json", "w") as fp:
-                json.dump(results, fp, indent=4)
-            breakpoint()
-
-
-        #     results = test(net, criterion, testloader, outloader, epoch=0, **options)
-        # print("Acc (%): {:.3f}\t AUROC (%): {:.3f}\t OSCR (%): {:.3f}\t".format(results['ACC'], results['AUROC'], results['OSCR']))
+        keyframes: List[Image] = [img_list[i] for i in top_index]
+        scores = score[top_index].tolist()
+        return {
+            "keyframes": keyframes,
+            "scores": scores
+        }
+    
+    # sample input
+    from PIL import Image
+    empty_images = [Image.new("RGB", (224, 224), (255, 255, 255))] * 10
+    text = "Why did Dokyoung go to the gym?"
+    result = keyframe_select_inference(empty_images, text)
+    breakpoint()
 
     return results
 
